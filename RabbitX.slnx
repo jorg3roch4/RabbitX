@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RabbitX/RabbitX.csproj" />
+  </Folder>
+  <Folder Name="/samples/">
+    <Project Path="samples/RabbitX.Samples.Common/RabbitX.Samples.Common.csproj" />
+    <Project Path="samples/RabbitX.Sample.Publisher/RabbitX.Sample.Publisher.csproj" />
+    <Project Path="samples/RabbitX.Sample.Consumer/RabbitX.Sample.Consumer.csproj" />
+    <Project Path="samples/RabbitX.Sample.Rpc/RabbitX.Sample.Rpc.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RabbitX.Tests/RabbitX.Tests.csproj" />
+  </Folder>
+</Solution>

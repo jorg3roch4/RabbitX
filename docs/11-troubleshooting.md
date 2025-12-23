@@ -387,6 +387,45 @@ This guide covers common issues and their solutions when working with RabbitX.
        .WithExchangeType("direct"))  // Must match: "direct"
    ```
 
+## Configuration Issues
+
+### IOptions<ConsumerOptions> Returns Null/Default Values
+
+**Symptoms:**
+- `DelaysInSeconds` is null
+- `MaxRetries` is 0 or unexpected default
+- Configuration from appsettings.json not being applied
+- Properties work when hardcoded but not from configuration
+
+**Cause:**
+
+RabbitX does NOT register individual `IOptions<ConsumerOptions>` in the DI container. It registers `RabbitXOptions` as a singleton, and consumer configurations are stored in a dictionary.
+
+**Wrong approach:**
+```csharp
+// This WILL NOT work - ConsumerOptions is not registered individually
+public NotificationHandler(IOptions<ConsumerOptions> consumerOptions)
+{
+    // consumerOptions.Value will be empty/default!
+    var delays = consumerOptions.Value.Retry.DelaysInSeconds;  // Always null!
+}
+```
+
+**Correct approach:**
+```csharp
+// Inject RabbitXOptions and access consumer by name
+public NotificationHandler(RabbitXOptions rabbitXOptions)
+{
+    if (rabbitXOptions.Consumers.TryGetValue("NotificationConsumer", out var options))
+    {
+        var maxRetries = options.Retry.MaxRetries;           // Works!
+        var delays = options.Retry.DelaysInSeconds;          // Works!
+    }
+}
+```
+
+See [Accessing Consumer Configuration from Handlers](04-consumers.md#accessing-consumer-configuration-from-handlers) for complete examples.
+
 ## Serialization Issues
 
 ### Deserialization Fails

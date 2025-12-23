@@ -257,14 +257,113 @@ Configure where failed messages go:
 
 See [Dead Letter Queues](07-dead-letter-queues.md) for detailed configuration.
 
+## Accessing Consumer Configuration from Handlers
+
+To access consumer configuration (retry settings, delays, etc.) from within a handler, inject `RabbitXOptions` directly. **Do NOT use `IOptions<ConsumerOptions>`** - individual consumer options are not registered separately in the DI container.
+
+### Correct Approach
+
+```csharp
+using RabbitX.Configuration;
+using RabbitX.Interfaces;
+using RabbitX.Models;
+
+public class NotificationHandler : IMessageHandler<NotificationEvent>
+{
+    private readonly ILogger<NotificationHandler> _logger;
+    private readonly int _maxRetries;
+    private readonly TimeSpan[] _retryDelays;
+
+    public NotificationHandler(
+        ILogger<NotificationHandler> logger,
+        RabbitXOptions rabbitXOptions)  // Inject RabbitXOptions, NOT IOptions<ConsumerOptions>
+    {
+        _logger = logger;
+
+        // Access the specific consumer configuration by name
+        if (rabbitXOptions.Consumers.TryGetValue("NotificationConsumer", out var consumerOptions))
+        {
+            _maxRetries = consumerOptions.Retry.MaxRetries;
+            _retryDelays = (consumerOptions.Retry.DelaysInSeconds ?? Array.Empty<int>())
+                .Select(seconds => TimeSpan.FromSeconds(seconds))
+                .ToArray();
+        }
+        else
+        {
+            // Fallback defaults if consumer not found
+            _maxRetries = 3;
+            _retryDelays = Array.Empty<TimeSpan>();
+        }
+    }
+
+    public async Task<ConsumeResult> HandleAsync(
+        MessageContext<NotificationEvent> context,
+        CancellationToken ct)
+    {
+        _logger.LogInformation(
+            "Processing notification with MaxRetries={MaxRetries}, Delays={Delays}",
+            _maxRetries,
+            string.Join(", ", _retryDelays.Select(d => d.TotalSeconds + "s")));
+
+        // Use the configuration values...
+        return ConsumeResult.Ack;
+    }
+}
+```
+
+### Why Not IOptions<ConsumerOptions>?
+
+RabbitX registers `RabbitXOptions` as a singleton containing all configuration:
+
+```csharp
+// This is what RabbitX registers internally:
+services.AddSingleton(options);  // RabbitXOptions instance
+
+// Consumer configurations are stored in a dictionary:
+public Dictionary<string, ConsumerOptions> Consumers { get; set; }
+```
+
+Individual `ConsumerOptions` are NOT registered with the DI container, so `IOptions<ConsumerOptions>` will resolve to an empty/default instance with null values.
+
+### Configuration Structure
+
+```
+RabbitXOptions (singleton)
+├── Connection: ConnectionOptions
+├── Publishers: Dictionary<string, PublisherOptions>
+├── Consumers: Dictionary<string, ConsumerOptions>  ← Access via key
+│   ├── "NotificationConsumer": ConsumerOptions
+│   │   ├── Queue, Exchange, RoutingKey...
+│   │   ├── Retry: RetryOptions
+│   │   │   ├── MaxRetries: 3
+│   │   │   ├── DelaysInSeconds: [10, 30, 60]
+│   │   │   └── ...
+│   │   └── DeadLetter: DeadLetterOptions
+│   └── "OrderConsumer": ConsumerOptions
+│       └── ...
+├── RpcClients: Dictionary<string, RpcClientOptions>
+└── RpcHandlers: Dictionary<string, RpcHandlerOptions>
+```
+
 ## Error Handling Patterns
 
-### Pattern 1: Retry with Count Limit
+### Pattern 1: Retry with Count Limit (Using Configuration)
 
 ```csharp
 public class OrderHandler : IMessageHandler<OrderEvent>
 {
-    private const int MaxRetries = 3;
+    private readonly ILogger<OrderHandler> _logger;
+    private readonly int _maxRetries;
+
+    public OrderHandler(
+        ILogger<OrderHandler> logger,
+        RabbitXOptions rabbitXOptions)
+    {
+        _logger = logger;
+        _maxRetries = rabbitXOptions.Consumers.TryGetValue("OrderConsumer", out var options)
+            ? options.Retry.MaxRetries
+            : 3;  // Fallback default
+    }
 
     public async Task<ConsumeResult> HandleAsync(
         MessageContext<OrderEvent> context,
@@ -277,9 +376,9 @@ public class OrderHandler : IMessageHandler<OrderEvent>
             await ProcessOrderAsync(context.Message, ct);
             return ConsumeResult.Ack;
         }
-        catch (Exception ex) when (retryCount < MaxRetries)
+        catch (Exception ex) when (retryCount < _maxRetries)
         {
-            _logger.LogWarning(ex, "Retry {Count}/{Max}", retryCount + 1, MaxRetries);
+            _logger.LogWarning(ex, "Retry {Count}/{Max}", retryCount + 1, _maxRetries);
             return ConsumeResult.Nack;  // Will increment x-death count
         }
         catch (Exception ex)
