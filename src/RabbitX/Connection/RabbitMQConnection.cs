@@ -15,6 +15,7 @@ public sealed class RabbitMQConnection : IRabbitMQConnection
     private readonly SemaphoreSlim _connectionLock = new(1, 1);
 
     private IConnection? _connection;
+    private volatile bool _isBlocked;
     private bool _disposed;
 
     /// <summary>
@@ -30,6 +31,9 @@ public sealed class RabbitMQConnection : IRabbitMQConnection
 
     /// <inheritdoc />
     public bool IsConnected => _connection?.IsOpen == true;
+
+    /// <inheritdoc />
+    public bool IsBlocked => _isBlocked;
 
     /// <inheritdoc />
     public async Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default)
@@ -159,12 +163,14 @@ public sealed class RabbitMQConnection : IRabbitMQConnection
 
     private Task OnConnectionBlockedAsync(object sender, ConnectionBlockedEventArgs args)
     {
+        _isBlocked = true;
         _logger.LogWarning("RabbitMQ connection blocked. Reason: {Reason}", args.Reason);
         return Task.CompletedTask;
     }
 
     private Task OnConnectionUnblockedAsync(object sender, AsyncEventArgs args)
     {
+        _isBlocked = false;
         _logger.LogInformation("RabbitMQ connection unblocked");
         return Task.CompletedTask;
     }

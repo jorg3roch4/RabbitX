@@ -1,0 +1,85 @@
+# RabbitX
+
+> Modern RabbitMQ Integration for .NET 10+
+
+RabbitX is a robust RabbitMQ abstraction library built on RabbitMQ.Client 7.x and Polly 8.x. It provides a clean fluent API for publishers and consumers, built-in resilience patterns, retry policies with exponential backoff, dead letter exchange support, and RPC capabilities.
+
+Key features:
+- Fluent API with full IntelliSense support
+- 100% parity between Fluent API and appsettings.json configuration
+- Multiple publishers and consumers with named configuration
+- Reliable publishing with broker confirmations
+- Retry policies with specific delays or exponential backoff with jitter
+- Automatic dead letter exchange setup
+- RPC support with Direct Reply-To optimization
+- QoS control (prefetch count, size, global settings)
+- Automatic connection recovery
+- Health checks for ASP.NET Core with blocked state detection
+
+## Installation
+
+```bash
+dotnet add package RabbitX
+```
+
+## Documentation
+
+- [Getting Started](https://github.com/jorg3roch4/RabbitX/blob/main/docs/01-getting-started.md): Installation and first message
+- [Configuration](https://github.com/jorg3roch4/RabbitX/blob/main/docs/02-configuration.md): Fluent API and appsettings.json reference
+- [Publishers](https://github.com/jorg3roch4/RabbitX/blob/main/docs/03-publishers.md): Publishing messages with confirms
+- [Consumers](https://github.com/jorg3roch4/RabbitX/blob/main/docs/04-consumers.md): Consuming messages with handlers
+- [RPC](https://github.com/jorg3roch4/RabbitX/blob/main/docs/05-rpc.md): Request-Reply pattern
+- [Retry & Resilience](https://github.com/jorg3roch4/RabbitX/blob/main/docs/06-retry-resilience.md): Retry policies and strategies
+- [Dead Letter Queues](https://github.com/jorg3roch4/RabbitX/blob/main/docs/07-dead-letter-queues.md): DLX configuration
+- [Health Checks](https://github.com/jorg3roch4/RabbitX/blob/main/docs/12-health-checks.md): ASP.NET Core health check integration
+
+## Basic Usage
+
+```csharp
+// Configuration with Fluent API
+builder.Services.AddRabbitX(options => options
+    .UseConnection("localhost", 5672)
+    .UseCredentials("guest", "guest")
+    .AddPublisher("OrderPublisher", pub => pub
+        .ToExchange("shop.orders.exchange", "topic")
+        .WithRoutingKey("orders.created"))
+    .AddConsumer("OrderConsumer", con => con
+        .FromQueue("shop.orders.created.queue")
+        .BindToExchange("shop.orders.exchange", "orders.created")));
+
+// Publishing
+public class OrderService(IPublisherFactory factory)
+{
+    public async Task CreateOrderAsync(Order order)
+    {
+        var publisher = factory.CreateReliablePublisher<OrderCreated>("OrderPublisher");
+        await publisher.PublishWithConfirmAsync(new OrderCreated(order.Id, order.Total));
+    }
+}
+
+// Consuming
+public class OrderCreatedHandler : IMessageHandler<OrderCreated>
+{
+    public Task<ConsumeResult> HandleAsync(MessageContext<OrderCreated> context, CancellationToken ct)
+    {
+        Console.WriteLine($"Processing order {context.Message.OrderId}");
+        return Task.FromResult(ConsumeResult.Ack);
+    }
+}
+
+// Register handler and hosted consumer
+builder.Services.AddMessageHandler<OrderCreated, OrderCreatedHandler>();
+builder.Services.AddHostedConsumer<OrderCreated>("OrderConsumer");
+```
+
+## Other Libraries from the Ecosystem
+
+If you're building .NET 10+ applications, you might also find these libraries useful:
+
+- **[AuditaX](https://github.com/jorg3roch4/AuditaX)**: Entity audit logging. Track changes across Dapper and Entity Framework Core with support for SQL Server and PostgreSQL. Automatic change tracking, related entities, and lookup properties.
+
+- **[MediateX](https://github.com/jorg3roch4/MediateX)**: Pure mediator pattern implementation. In-process messaging with request/response, CQRS, notifications, and streaming. Clean pipeline architecture with behaviors for cross-cutting concerns.
+
+- **[VaultaX](https://github.com/jorg3roch4/VaultaX)**: HashiCorp Vault integration. Transparent secret management where Vault secrets automatically overlay your appsettings.json values. Supports KV, Transit (signing/encryption), and PKI secret engines with automatic token renewal.
+
+All libraries share the same philosophy: modern .NET 10+ with C# 14, clean APIs, and comprehensive documentation.

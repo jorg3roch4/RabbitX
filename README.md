@@ -4,7 +4,7 @@
 
 **The Modern RabbitMQ Integration for .NET 10+**
 
-[![NuGet](https://img.shields.io/nuget/v/RabbitX.svg?style=flat-square)](https://www.nuget.org/packages/RabbitX)[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg?style=flat-square)](https://github.com/jorg3roch4/RabbitX/blob/main/LICENSE)[![C#](https://img.shields.io/badge/C%23-14-239120.svg?style=flat-square)](https://docs.microsoft.com/en-us/dotnet/csharp/)[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4.svg?style=flat-square)](https://dotnet.microsoft.com/)
+[![NuGet](https://img.shields.io/nuget/v/RabbitX.svg?style=flat-square)](https://www.nuget.org/packages/RabbitX)[![License](https://img.shields.io/badge/license-MIT-blue.svg?style=flat-square)](https://github.com/jorg3roch4/RabbitX/blob/main/LICENSE)[![C#](https://img.shields.io/badge/C%23-14-239120.svg?style=flat-square)](https://docs.microsoft.com/en-us/dotnet/csharp/)[![.NET](https://img.shields.io/badge/.NET-10.0-512BD4.svg?style=flat-square)](https://dotnet.microsoft.com/)
 
 **RabbitX** is a robust RabbitMQ abstraction library designed exclusively for modern .NET applications. Built on top of the official **RabbitMQ.Client 7.x** and **Polly 8.x**, it provides a clean fluent API for publishers and consumers, built-in resilience patterns, retry policies with exponential backoff, dead letter exchange support, and RPC capabilities.
 
@@ -45,20 +45,32 @@ Of course, there's absolutely no obligation. If you prefer, simply starring the 
 - **QoS Control**: Prefetch count, prefetch size, and global QoS settings
 - **Connection Recovery**: Automatic reconnection on connection failures
 - **Polly Integration**: Built-in resilience with the Polly library
+- **Health Checks**: Built-in health check for ASP.NET Core with connection and blocked state detection
 
 ---
 
-## 🎉 What's New in 1.0.0
+## 🎉 What's New in 1.1.0
 
-**Initial Release!** RabbitX 1.0.0 brings a complete RabbitMQ integration solution:
+**Health Checks!** RabbitX 1.1.0 adds built-in health check support for ASP.NET Core:
 
-- **Fluent API**: Clean, type-safe configuration with full IntelliSense support
-- **appsettings.json**: Complete configuration from JSON files with 100% feature parity
-- **Retry Policies**: Specific delays or exponential backoff with jitter support
-- **Dead Letter Exchange**: Automatic DLX setup and message routing on failure
-- **RPC Support**: Request-Reply pattern with Direct Reply-To optimization
-- **Publisher Confirms**: Reliable message delivery with broker acknowledgments
-- **Polly Integration**: Built-in resilience with the Polly library
+- **Connection Status**: Fast-fail check verifying `IsConnected` state
+- **Blocked Detection**: Reports `Degraded` status when connection is blocked by broker
+- **Real Communication**: Creates temporary channel to verify actual broker communication
+- **Rich Data**: Includes server info, version, virtual host, and client name in health response
+- **Configurable**: Custom name, tags, timeout, and failure status options
+
+```csharp
+// Basic usage
+services.AddHealthChecks().AddRabbitX();
+
+// With configuration
+services.AddHealthChecks().AddRabbitX(options =>
+{
+    options.Name = "rabbitmq-primary";
+    options.Tags = new[] { "ready", "messaging" };
+    options.Timeout = TimeSpan.FromSeconds(10);
+});
+```
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
 
@@ -199,6 +211,7 @@ Comprehensive guides to help you master RabbitX:
 ### Advanced Topics
 - **[Retry & Resilience](https://github.com/jorg3roch4/RabbitX/blob/main/docs/06-retry-resilience.md)** - Retry policies and strategies
 - **[Dead Letter Queues](https://github.com/jorg3roch4/RabbitX/blob/main/docs/07-dead-letter-queues.md)** - DLX configuration
+- **[Health Checks](https://github.com/jorg3roch4/RabbitX/blob/main/docs/12-health-checks.md)** - ASP.NET Core health check integration
 
 ### Examples
 Check out the **[samples folder](https://github.com/jorg3roch4/RabbitX/tree/main/samples)** for complete working examples.

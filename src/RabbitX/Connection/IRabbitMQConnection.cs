@@ -13,6 +13,11 @@ public interface IRabbitMQConnection : IAsyncDisposable
     bool IsConnected { get; }
 
     /// <summary>
+    /// Gets whether the connection is currently blocked by the broker.
+    /// </summary>
+    bool IsBlocked { get; }
+
+    /// <summary>
     /// Gets the underlying connection (creates if not exists).
     /// </summary>
     Task<IConnection> GetConnectionAsync(CancellationToken cancellationToken = default);

@@ -11,6 +11,7 @@
 - **Retry & Resilience** - Built-in Polly integration for fault tolerance
 - **Dead Letter Queues** - Automatic DLQ configuration for failed messages
 - **JSON Serialization** - System.Text.Json with customizable options
+- **Health Checks** - Built-in ASP.NET Core health check with blocked state detection
 
 ## Requirements
 
@@ -52,6 +53,7 @@ services.AddHostedConsumer<OrderCreatedEvent>("OrderConsumer");
 | 9 | [Naming Conventions](09-naming-conventions.md) | Best practices for naming |
 | 10 | [Samples](10-samples.md) | Complete working examples |
 | 11 | [Troubleshooting](11-troubleshooting.md) | Common issues and solutions |
+| 12 | [Health Checks](12-health-checks.md) | ASP.NET Core health check integration |
 
 ## Architecture Overview
 

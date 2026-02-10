@@ -9,6 +9,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-02-01
+
+### Added
+- Health check support for ASP.NET Core (`IHealthCheck`)
+  - `RabbitMQHealthCheck` - Verifies RabbitMQ connection status
+  - `RabbitMQHealthCheckOptions` - Configurable name, tags, timeout, and failure status
+  - `AddRabbitX()` extension method for `IHealthChecksBuilder`
+- `IsBlocked` property on `IRabbitMQConnection` interface
+  - Tracks connection blocked state from broker flow control
+  - Returns `Degraded` health status when blocked
+
+### Health Check Features
+- **Fast-fail**: Checks `IsConnected` first for immediate response
+- **Blocked detection**: Reports `Degraded` when connection is blocked by broker
+- **Real verification**: Creates temporary channel to confirm actual communication
+- **Rich data**: Returns host, port, virtualHost, clientName, server, version, and isBlocked
+
+### Dependencies
+- Added `Microsoft.Extensions.Diagnostics.HealthChecks` 10.0.1
+
+---
+
 ## [1.0.0] - 2025-12-15
 
 ### Added
@@ -63,5 +85,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Microsoft.Extensions.Logging.Abstractions 10.0.0
 - Microsoft.Extensions.Options 10.0.0
 
-[Unreleased]: https://github.com/jorg3roch4/RabbitX/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/jorg3roch4/RabbitX/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/jorg3roch4/RabbitX/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jorg3roch4/RabbitX/releases/tag/v1.0.0
