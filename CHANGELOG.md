@@ -9,6 +9,47 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.2.0] - 2026-02-10
+
+### Added
+- **OpenTelemetry instrumentation** with distributed tracing, metrics, and W3C TraceContext propagation
+- `RabbitXActivitySource` - Factory for creating `Activity` spans with OTel semantic conventions
+  - `StartPublishActivity()` - Producer spans for message publishing
+  - `StartConsumeActivity()` - Consumer spans for message processing
+  - `StartRpcClientActivity()` - Client spans for RPC requests
+  - `StartRpcServerActivity()` - Server spans for RPC handling
+  - `RecordException()` - Records exception events with error status
+- `RabbitXMeter` - 16 metric instruments for full observability
+  - Publishing: `rabbitx.messages.published`, `rabbitx.messages.publish.errors`, `rabbitx.messages.publish.duration`, `rabbitx.messages.publish.size`
+  - Consuming: `rabbitx.messages.consumed`, `rabbitx.messages.consume.results`, `rabbitx.messages.consume.duration`, `rabbitx.messages.consume.errors`
+  - Retry: `rabbitx.messages.retries`, `rabbitx.messages.retries.exhausted`
+  - RPC: `rabbitx.rpc.calls`, `rabbitx.rpc.duration`, `rabbitx.rpc.timeouts`, `rabbitx.rpc.errors`
+  - Connection: `rabbitx.connections.created`, `rabbitx.connections.errors`
+- `MessageHeadersPropagator` - W3C TraceContext propagation through AMQP headers
+  - Injects `traceparent`/`tracestate` into message headers on publish
+  - Extracts `ActivityContext` from headers on consume (supports both `string` and `byte[]`)
+  - Enables end-to-end distributed tracing across publish → consume → RPC flows
+- `TracerProviderBuilder.AddRabbitXInstrumentation()` extension method
+- `MeterProviderBuilder.AddRabbitXInstrumentation()` extension method
+- `RabbitXTelemetryConstants` - Semantic convention constants following OTel Messaging Specifications
+
+### Changed
+- `RabbitMQPublisher` - Instrumented with tracing spans, metrics, and context propagation on publish
+- `RabbitMQConsumer` - Instrumented with tracing spans, metrics, context extraction, and retry tracking
+- `RabbitMQRpcClient` - Instrumented with client spans, RPC metrics, and context propagation
+- `RpcConsumerHostedService` - Instrumented with server spans, error recording, and context extraction
+- `RabbitMQConnection` - Records connection created/error metrics with host and vhost tags
+
+### Dependencies
+- Added `OpenTelemetry.Api` 1.15.0
+
+### Design
+- **Zero overhead without OTel SDK**: `ActivitySource.StartActivity()` returns `null` when no listener is configured; metrics are no-op without `MeterListener`
+- **Opt-in**: Users add `AddRabbitXInstrumentation()` to their OTel pipeline only when needed
+- **Thread-safe**: All static instruments are thread-safe by design
+- **W3C compliant**: Follows [OTel Messaging Semantic Conventions](https://opentelemetry.io/docs/specs/semconv/messaging/)
+
+---
 ## [1.1.0] - 2026-02-01
 
 ### Added
@@ -85,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Microsoft.Extensions.Logging.Abstractions 10.0.0
 - Microsoft.Extensions.Options 10.0.0
 
-[Unreleased]: https://github.com/jorg3roch4/RabbitX/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/jorg3roch4/RabbitX/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/jorg3roch4/RabbitX/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/jorg3roch4/RabbitX/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/jorg3roch4/RabbitX/releases/tag/v1.0.0

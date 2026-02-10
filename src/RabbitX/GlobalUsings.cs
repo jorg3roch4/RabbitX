@@ -16,6 +16,9 @@ global using Microsoft.Extensions.Options;
 
 global using Microsoft.Extensions.Diagnostics.HealthChecks;
 
+global using System.Diagnostics;
+global using System.Diagnostics.Metrics;
+
 global using Polly;
 
 global using RabbitMQ.Client;

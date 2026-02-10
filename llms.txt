@@ -15,6 +15,7 @@ Key features:
 - QoS control (prefetch count, size, global settings)
 - Automatic connection recovery
 - Health checks for ASP.NET Core with blocked state detection
+- OpenTelemetry instrumentation: distributed tracing, metrics, and W3C TraceContext propagation through AMQP headers
 
 ## Installation
 
@@ -32,6 +33,7 @@ dotnet add package RabbitX
 - [Retry & Resilience](https://github.com/jorg3roch4/RabbitX/blob/main/docs/06-retry-resilience.md): Retry policies and strategies
 - [Dead Letter Queues](https://github.com/jorg3roch4/RabbitX/blob/main/docs/07-dead-letter-queues.md): DLX configuration
 - [Health Checks](https://github.com/jorg3roch4/RabbitX/blob/main/docs/12-health-checks.md): ASP.NET Core health check integration
+- [OpenTelemetry](https://github.com/jorg3roch4/RabbitX/blob/main/docs/13-opentelemetry.md): Distributed tracing, metrics, and context propagation
 
 ## Basic Usage
 

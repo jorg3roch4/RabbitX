@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -5,6 +6,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitX.Configuration;
 using RabbitX.Connection;
+using RabbitX.Diagnostics;
 using RabbitX.Interfaces;
 
 namespace RabbitX.Rpc;
@@ -174,6 +176,13 @@ public sealed class RpcConsumerHostedService : BackgroundService
         var replyTo = args.BasicProperties.ReplyTo;
         var messageId = args.BasicProperties.MessageId ?? Guid.NewGuid().ToString();
 
+        // Extract parent trace context from request headers
+        var parentContext = MessageHeadersPropagator.Extract(args.BasicProperties.Headers);
+        using var activity = RabbitXActivitySource.StartRpcServerActivity(
+            context.Options.Queue, context.Name, correlationId ?? messageId, parentContext);
+
+        var stopwatch = Stopwatch.StartNew();
+
         try
         {
             if (string.IsNullOrEmpty(replyTo))
@@ -260,6 +269,9 @@ public sealed class RpcConsumerHostedService : BackgroundService
             // Acknowledge request
             await context.Channel.BasicAckAsync(args.DeliveryTag, false, cancellationToken);
 
+            stopwatch.Stop();
+            activity?.SetStatus(ActivityStatusCode.Ok);
+
             _logger.LogDebug(
                 "RPC response sent. Handler: {Handler}, CorrelationId: {CorrelationId}",
                 context.Name,
@@ -267,6 +279,12 @@ public sealed class RpcConsumerHostedService : BackgroundService
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+            RabbitXActivitySource.RecordException(activity, ex);
+            RabbitXMeter.RpcErrors.Add(1,
+                new KeyValuePair<string, object?>("handler", context.Name),
+                new KeyValuePair<string, object?>("queue", context.Options.Queue));
+
             _logger.LogError(
                 ex,
                 "Error processing RPC request. Handler: {Handler}, CorrelationId: {CorrelationId}",

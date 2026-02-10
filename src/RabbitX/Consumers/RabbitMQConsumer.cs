@@ -3,6 +3,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitX.Configuration;
 using RabbitX.Connection;
+using RabbitX.Diagnostics;
 using RabbitX.Interfaces;
 using RabbitX.Models;
 using RabbitX.Resilience;
@@ -154,6 +155,19 @@ internal sealed class RabbitMQConsumer<TMessage> : IMessageConsumer<TMessage>
     {
         var messageId = args.BasicProperties.MessageId ?? Guid.NewGuid().ToString();
         var retryCount = GetRetryCount(args.BasicProperties);
+        var stopwatch = Stopwatch.StartNew();
+
+        // Extract parent trace context from message headers
+        var parentContext = MessageHeadersPropagator.Extract(args.BasicProperties.Headers);
+        using var activity = RabbitXActivitySource.StartConsumeActivity(
+            _options.Queue, ConsumerName, messageId, parentContext);
+
+        if (retryCount > 0)
+            activity?.SetTag(RabbitXTelemetryConstants.RabbitXRetryCountKey, retryCount);
+
+        RabbitXMeter.MessagesConsumed.Add(1,
+            new KeyValuePair<string, object?>("consumer", ConsumerName),
+            new KeyValuePair<string, object?>("queue", _options.Queue));
 
         _logger.LogDebug(
             "Message received. Consumer: {Consumer}, MessageId: {MessageId}, RetryCount: {RetryCount}",
@@ -190,11 +204,34 @@ internal sealed class RabbitMQConsumer<TMessage> : IMessageConsumer<TMessage>
             // Process message with handler
             var result = await _handler.HandleAsync(context, CancellationToken.None);
 
+            stopwatch.Stop();
+
+            activity?.SetTag(RabbitXTelemetryConstants.RabbitXConsumeResultKey, result.ToString().ToLowerInvariant());
+            activity?.SetStatus(ActivityStatusCode.Ok);
+
+            RabbitXMeter.ConsumeResults.Add(1,
+                new KeyValuePair<string, object?>("consumer", ConsumerName),
+                new KeyValuePair<string, object?>("queue", _options.Queue),
+                new KeyValuePair<string, object?>("result", result.ToString().ToLowerInvariant()));
+            RabbitXMeter.ConsumeDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("consumer", ConsumerName),
+                new KeyValuePair<string, object?>("queue", _options.Queue));
+
             // Handle result
             await HandleConsumeResultAsync(args, result, retryCount, messageId);
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+
+            RabbitXActivitySource.RecordException(activity, ex);
+            RabbitXMeter.ConsumeErrors.Add(1,
+                new KeyValuePair<string, object?>("consumer", ConsumerName),
+                new KeyValuePair<string, object?>("queue", _options.Queue));
+            RabbitXMeter.ConsumeDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("consumer", ConsumerName),
+                new KeyValuePair<string, object?>("queue", _options.Queue));
+
             _logger.LogError(
                 ex,
                 "Unhandled exception processing message {MessageId} in consumer {Consumer}",
@@ -246,6 +283,10 @@ internal sealed class RabbitMQConsumer<TMessage> : IMessageConsumer<TMessage>
 
         if (currentRetryCount >= retryOptions.MaxRetries)
         {
+            RabbitXMeter.RetryExhausted.Add(1,
+                new KeyValuePair<string, object?>("consumer", ConsumerName),
+                new KeyValuePair<string, object?>("queue", _options.Queue));
+
             _logger.LogWarning(
                 "Message {MessageId} exhausted all retries ({MaxRetries}). Action: {Action}",
                 messageId,
@@ -255,6 +296,10 @@ internal sealed class RabbitMQConsumer<TMessage> : IMessageConsumer<TMessage>
             await HandleRetryExhaustedAsync(args, messageId);
             return;
         }
+
+        RabbitXMeter.RetryAttempts.Add(1,
+            new KeyValuePair<string, object?>("consumer", ConsumerName),
+            new KeyValuePair<string, object?>("queue", _options.Queue));
 
         // Calculate delay for this retry
         var delay = _retryPolicyProvider.GetDelayForRetry(currentRetryCount + 1, retryOptions);
@@ -319,6 +364,9 @@ internal sealed class RabbitMQConsumer<TMessage> : IMessageConsumer<TMessage>
         headers["x-retry-timestamp"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
         headers["x-last-error"] = lastException?.Message ?? "Unknown error";
         headers["x-consumer-name"] = ConsumerName;
+
+        // Re-inject current trace context so the retried message maintains the trace
+        MessageHeadersPropagator.Inject(Activity.Current, headers);
 
         var properties = new BasicProperties
         {

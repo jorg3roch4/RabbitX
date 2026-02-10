@@ -1,0 +1,71 @@
+## [1.2.0] - OpenTelemetry Instrumentation
+
+Full OpenTelemetry support with distributed tracing, metrics, and W3C TraceContext propagation through AMQP headers.
+
+### New Files (Diagnostics)
+
+| File | Description |
+|------|-------------|
+| `src/RabbitX/Diagnostics/RabbitXTelemetryConstants.cs` | Semantic convention constants following OTel Messaging Specifications |
+| `src/RabbitX/Diagnostics/RabbitXActivitySource.cs` | `ActivitySource` factory with methods for Publish, Consume, RPC Client, and RPC Server spans |
+| `src/RabbitX/Diagnostics/RabbitXMeter.cs` | 16 metric instruments: counters and histograms for publish, consume, retry, RPC, and connection |
+| `src/RabbitX/Diagnostics/MessageHeadersPropagator.cs` | W3C TraceContext injection/extraction through AMQP headers (supports `string` and `byte[]`) |
+| `src/RabbitX/Diagnostics/TracingBuilderExtensions.cs` | `TracerProviderBuilder.AddRabbitXInstrumentation()` extension |
+| `src/RabbitX/Diagnostics/MetricsBuilderExtensions.cs` | `MeterProviderBuilder.AddRabbitXInstrumentation()` extension |
+
+### New Files (Tests)
+
+| File | Tests |
+|------|-------|
+| `tests/RabbitX.Tests/Diagnostics/RabbitXActivitySourceTests.cs` | 20 tests - All activity types, semantic tags, parent context linking, RecordException, status management |
+| `tests/RabbitX.Tests/Diagnostics/RabbitXMeterTests.cs` | 20 tests - All 16 instruments with value and tag validation, accumulation, multiple dimensions |
+| `tests/RabbitX.Tests/Diagnostics/MessageHeadersPropagatorTests.cs` | 18 tests - Inject/Extract, round-trip, byte[] handling, end-to-end Publish→Consume and RPC flows, retry chain |
+
+### Modified Files
+
+| File | Change |
+|------|--------|
+| `src/RabbitX/RabbitX.csproj` | Version → 1.2.0, added `OpenTelemetry.Api` 1.15.0, added `InternalsVisibleTo`, updated description/tags |
+| `src/RabbitX/GlobalUsings.cs` | Added `System.Diagnostics` and `System.Diagnostics.Metrics` |
+| `src/RabbitX/Publishers/RabbitMQPublisher.cs` | Tracing spans + metrics on publish, context propagation in headers |
+| `src/RabbitX/Consumers/RabbitMQConsumer.cs` | Tracing spans + metrics on consume, context extraction, retry tracking |
+| `src/RabbitX/Rpc/RabbitMQRpcClient.cs` | Client spans + RPC metrics, context propagation |
+| `src/RabbitX/Rpc/RpcConsumerHostedService.cs` | Server spans + error recording, context extraction |
+| `src/RabbitX/Connection/RabbitMQConnection.cs` | Connection created/error metrics with host and vhost tags |
+| `CHANGELOG.md` | New `[1.2.0]` entry with full details |
+| `README.md` | Updated "What's New" to 1.2.0, added OTel feature and documentation link |
+| `docs/README.md` | Added OpenTelemetry to features list and table of contents |
+| `llms.txt` | Added OpenTelemetry feature and documentation link |
+
+### Metrics Instruments (16)
+
+- **Publishing**: `rabbitx.messages.published`, `rabbitx.messages.publish.errors`, `rabbitx.messages.publish.duration`, `rabbitx.messages.publish.size`
+- **Consuming**: `rabbitx.messages.consumed`, `rabbitx.messages.consume.results`, `rabbitx.messages.consume.duration`, `rabbitx.messages.consume.errors`
+- **Retry**: `rabbitx.messages.retries`, `rabbitx.messages.retries.exhausted`
+- **RPC**: `rabbitx.rpc.calls`, `rabbitx.rpc.duration`, `rabbitx.rpc.timeouts`, `rabbitx.rpc.errors`
+- **Connection**: `rabbitx.connections.created`, `rabbitx.connections.errors`
+
+### Span Hierarchy
+
+```
+[RabbitX] orders.exchange publish (Producer)
+  └─ [RabbitMQ.Client] basic.publish (Internal)
+  ─── traceparent header propagation ───
+[RabbitX] orders.queue process (Consumer)     ← linked via W3C TraceContext
+```
+
+### Design Decisions
+
+- **Zero overhead**: `ActivitySource.StartActivity()` returns `null` without a listener; metrics are no-op without `MeterListener`
+- **Opt-in**: Users add `AddRabbitXInstrumentation()` only when needed
+- **No SDK dependency**: Only `OpenTelemetry.Api` (lightweight), not the full SDK
+- **W3C compliant**: Uses `TraceContextPropagator` for `traceparent`/`tracestate` propagation
+- **Handles RabbitMQ byte[] headers**: `MessageHeadersPropagator.Extract` handles both `string` and `byte[]` values
+
+### Test Results
+
+```
+Total tests: 123
+  Passed:    123
+  Failed:      0
+```

@@ -13,19 +13,23 @@
     <Version>1.1.0</Version>
     <AssemblyVersion>1.1.0</AssemblyVersion>
     <FileVersion>1.1.0</FileVersion>
+    <Version>1.2.0</Version>
+    <AssemblyVersion>1.2.0</AssemblyVersion>
+    <FileVersion>1.2.0</FileVersion>
     <Product>RabbitX</Product>
 
     <!-- Package Metadata -->
     <Title>RabbitX - RabbitMQ Integration for .NET</Title>
     <Authors>jorg3roch4</Authors>
-    <Description>RabbitMQ abstraction library for .NET 10+ with resilience patterns, fluent configuration, RPC support, and dead letter handling. Built on RabbitMQ.Client 7.0 and Polly 8.5.</Description>
+    <Description>RabbitMQ abstraction library for .NET 10+ with resilience patterns, fluent configuration, RPC support, dead letter handling, and OpenTelemetry instrumentation. Built on RabbitMQ.Client 7.x and Polly 8.x.</Description>
     <Copyright>Copyright (c) 2025</Copyright>
-    <PackageTags>rabbitmq;messaging;queue;amqp;polly;resilience;rpc;pubsub;dead-letter;retry;circuit-breaker;net10</PackageTags>
+    <PackageTags>rabbitmq;messaging;queue;amqp;polly;resilience;rpc;pubsub;dead-letter;retry;circuit-breaker;opentelemetry;tracing;metrics;net10</PackageTags>
     <PackageProjectUrl>https://github.com/jorg3roch4/RabbitX</PackageProjectUrl>
     <PackageIcon>icon-128x128.png</PackageIcon>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageLicenseFile>LICENSE</PackageLicenseFile>
     <PackageReleaseNotes>v1.1.0 - Added RabbitMQ health check with connection status, blocked state detection, and configurable options.</PackageReleaseNotes>
+    <PackageReleaseNotes>v1.2.0 - Added OpenTelemetry instrumentation with distributed tracing, metrics, and W3C TraceContext propagation through AMQP headers.</PackageReleaseNotes>
     <NeutralLanguage>en</NeutralLanguage>
     <MinClientVersion>6.0</MinClientVersion>
 
@@ -51,6 +55,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <InternalsVisibleTo Include="RabbitX.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Include="..\..\assets\icon-128x128.png" Pack="true" PackagePath="" />
     <None Include="..\..\LICENSE" Pack="true" PackagePath="" />
     <None Include="..\..\README.md" Pack="true" PackagePath="" />
@@ -66,6 +74,7 @@
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.1" />
     <PackageReference Include="Microsoft.Extensions.Options" Version="10.0.1" />
+    <PackageReference Include="OpenTelemetry.Api" Version="1.15.0" />
   </ItemGroup>
 
 </Project>

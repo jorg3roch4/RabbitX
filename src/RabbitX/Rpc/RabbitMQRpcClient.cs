@@ -4,6 +4,7 @@ using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitX.Configuration;
 using RabbitX.Connection;
+using RabbitX.Diagnostics;
 using RabbitX.Interfaces;
 using RabbitX.Models;
 
@@ -115,6 +116,13 @@ internal sealed class RabbitMQRpcClient<TRequest, TResponse> : IRpcClient<TReque
         var timeout = options.Timeout ?? _options.Timeout;
         var stopwatch = Stopwatch.StartNew();
 
+        using var activity = RabbitXActivitySource.StartRpcClientActivity(
+            _options.Exchange, _options.RoutingKey, _options.Name, correlationId);
+
+        RabbitXMeter.RpcCallsMade.Add(1,
+            new KeyValuePair<string, object?>("client", _options.Name),
+            new KeyValuePair<string, object?>("exchange", _options.Exchange));
+
         // Create TaskCompletionSource to wait for response
         var tcs = new TaskCompletionSource<TResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -163,6 +171,11 @@ internal sealed class RabbitMQRpcClient<TRequest, TResponse> : IRpcClient<TReque
             var response = await tcs.Task.WaitAsync(cts.Token);
             stopwatch.Stop();
 
+            RabbitXMeter.RpcDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("client", _options.Name),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+            activity?.SetStatus(ActivityStatusCode.Ok);
+
             _logger.LogDebug(
                 "RPC response received. Client: {ClientName}, CorrelationId: {CorrelationId}, Duration: {Duration}ms",
                 _options.Name,
@@ -175,6 +188,14 @@ internal sealed class RabbitMQRpcClient<TRequest, TResponse> : IRpcClient<TReque
         {
             stopwatch.Stop();
 
+            RabbitXMeter.RpcTimeouts.Add(1,
+                new KeyValuePair<string, object?>("client", _options.Name),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+            RabbitXMeter.RpcDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("client", _options.Name),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+            activity?.SetStatus(ActivityStatusCode.Error, "RPC timeout");
+
             _logger.LogWarning(
                 "RPC timeout. Client: {ClientName}, CorrelationId: {CorrelationId}, Timeout: {Timeout}s",
                 _options.Name,
@@ -186,6 +207,14 @@ internal sealed class RabbitMQRpcClient<TRequest, TResponse> : IRpcClient<TReque
         catch (Exception ex)
         {
             stopwatch.Stop();
+
+            RabbitXActivitySource.RecordException(activity, ex);
+            RabbitXMeter.RpcErrors.Add(1,
+                new KeyValuePair<string, object?>("client", _options.Name),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+            RabbitXMeter.RpcDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("client", _options.Name),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
 
             _logger.LogError(
                 ex,
@@ -330,6 +359,9 @@ internal sealed class RabbitMQRpcClient<TRequest, TResponse> : IRpcClient<TReque
                 headers[key] = value;
             }
         }
+
+        // Inject trace context for distributed tracing propagation
+        MessageHeadersPropagator.Inject(Activity.Current, headers);
 
         return new BasicProperties
         {

@@ -46,30 +46,28 @@ Of course, there's absolutely no obligation. If you prefer, simply starring the 
 - **Connection Recovery**: Automatic reconnection on connection failures
 - **Polly Integration**: Built-in resilience with the Polly library
 - **Health Checks**: Built-in health check for ASP.NET Core with connection and blocked state detection
+- **OpenTelemetry**: Distributed tracing, metrics, and W3C TraceContext propagation
 
 ---
 
-## 🎉 What's New in 1.1.0
+## 🎉 What's New in 1.2.0
 
-**Health Checks!** RabbitX 1.1.0 adds built-in health check support for ASP.NET Core:
+**OpenTelemetry Instrumentation!** RabbitX 1.2.0 adds full observability support:
 
-- **Connection Status**: Fast-fail check verifying `IsConnected` state
-- **Blocked Detection**: Reports `Degraded` status when connection is blocked by broker
-- **Real Communication**: Creates temporary channel to verify actual broker communication
-- **Rich Data**: Includes server info, version, virtual host, and client name in health response
-- **Configurable**: Custom name, tags, timeout, and failure status options
+- **Distributed Tracing**: Automatic spans for publish, consume, and RPC operations following OTel Messaging Semantic Conventions
+- **16 Metrics**: Counters and histograms for messages published/consumed, durations, errors, retries, RPC calls, and connections
+- **W3C TraceContext**: Automatic propagation of `traceparent`/`tracestate` through AMQP headers, linking producer and consumer spans across services
+- **Zero Overhead**: No performance impact when OpenTelemetry SDK is not configured
 
 ```csharp
-// Basic usage
-services.AddHealthChecks().AddRabbitX();
-
-// With configuration
-services.AddHealthChecks().AddRabbitX(options =>
-{
-    options.Name = "rabbitmq-primary";
-    options.Tags = new[] { "ready", "messaging" };
-    options.Timeout = TimeSpan.FromSeconds(10);
-});
+// Add RabbitX tracing and metrics to your OTel pipeline
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddRabbitXInstrumentation()
+        .AddOtlpExporter())
+    .WithMetrics(metrics => metrics
+        .AddRabbitXInstrumentation()
+        .AddOtlpExporter());
 ```
 
 See [CHANGELOG.md](CHANGELOG.md) for full details.
@@ -212,6 +210,7 @@ Comprehensive guides to help you master RabbitX:
 - **[Retry & Resilience](https://github.com/jorg3roch4/RabbitX/blob/main/docs/06-retry-resilience.md)** - Retry policies and strategies
 - **[Dead Letter Queues](https://github.com/jorg3roch4/RabbitX/blob/main/docs/07-dead-letter-queues.md)** - DLX configuration
 - **[Health Checks](https://github.com/jorg3roch4/RabbitX/blob/main/docs/12-health-checks.md)** - ASP.NET Core health check integration
+- **[OpenTelemetry](https://github.com/jorg3roch4/RabbitX/blob/main/docs/13-opentelemetry.md)** - Distributed tracing, metrics, and context propagation
 
 ### Examples
 Check out the **[samples folder](https://github.com/jorg3roch4/RabbitX/tree/main/samples)** for complete working examples.

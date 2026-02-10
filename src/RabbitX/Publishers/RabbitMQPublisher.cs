@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitX.Configuration;
 using RabbitX.Connection;
+using RabbitX.Diagnostics;
 using RabbitX.Interfaces;
 using RabbitX.Models;
 
@@ -81,6 +82,9 @@ internal sealed class RabbitMQPublisher<TMessage> : IReliableMessagePublisher<TM
         if (_disposed)
             throw new ObjectDisposedException(nameof(RabbitMQPublisher<TMessage>));
 
+        var stopwatch = Stopwatch.StartNew();
+        Activity? activity = null;
+
         await _channelLock.WaitAsync(cancellationToken);
         try
         {
@@ -89,8 +93,12 @@ internal sealed class RabbitMQPublisher<TMessage> : IReliableMessagePublisher<TM
 
             var messageId = Guid.NewGuid().ToString();
             var body = _serializer.Serialize(message);
-            var properties = CreateBasicProperties(channel, messageId, options);
             var routingKey = options.RoutingKeyOverride ?? _options.RoutingKey;
+
+            activity = RabbitXActivitySource.StartPublishActivity(
+                _options.Exchange, routingKey, _publisherName, messageId, body.Length);
+
+            var properties = CreateBasicProperties(channel, messageId, options);
 
             await channel.BasicPublishAsync(
                 exchange: _options.Exchange,
@@ -99,6 +107,20 @@ internal sealed class RabbitMQPublisher<TMessage> : IReliableMessagePublisher<TM
                 basicProperties: properties,
                 body: body,
                 cancellationToken: cancellationToken);
+
+            stopwatch.Stop();
+
+            RabbitXMeter.MessagesPublished.Add(1,
+                new KeyValuePair<string, object?>("publisher", _publisherName),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+            RabbitXMeter.PublishDuration.Record(stopwatch.Elapsed.TotalMilliseconds,
+                new KeyValuePair<string, object?>("publisher", _publisherName),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+            RabbitXMeter.PublishMessageSize.Record(body.Length,
+                new KeyValuePair<string, object?>("publisher", _publisherName),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+
+            activity?.SetStatus(ActivityStatusCode.Ok);
 
             _logger.LogDebug(
                 "Message published. Publisher: {Publisher}, Exchange: {Exchange}, RoutingKey: {RoutingKey}, MessageId: {MessageId}",
@@ -111,6 +133,13 @@ internal sealed class RabbitMQPublisher<TMessage> : IReliableMessagePublisher<TM
         }
         catch (Exception ex)
         {
+            stopwatch.Stop();
+
+            RabbitXActivitySource.RecordException(activity, ex);
+            RabbitXMeter.PublishErrors.Add(1,
+                new KeyValuePair<string, object?>("publisher", _publisherName),
+                new KeyValuePair<string, object?>("exchange", _options.Exchange));
+
             _logger.LogError(
                 ex,
                 "Failed to publish message. Publisher: {Publisher}, Exchange: {Exchange}",
@@ -124,6 +153,7 @@ internal sealed class RabbitMQPublisher<TMessage> : IReliableMessagePublisher<TM
         }
         finally
         {
+            activity?.Dispose();
             _channelLock.Release();
         }
     }
@@ -215,6 +245,9 @@ internal sealed class RabbitMQPublisher<TMessage> : IReliableMessagePublisher<TM
                 headers[key] = value;
             }
         }
+
+        // Inject trace context for distributed tracing propagation
+        MessageHeadersPropagator.Inject(Activity.Current, headers);
 
         var properties = new BasicProperties
         {

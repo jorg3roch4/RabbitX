@@ -2,6 +2,7 @@ using Microsoft.Extensions.Logging;
 using RabbitMQ.Client;
 using RabbitMQ.Client.Events;
 using RabbitX.Configuration;
+using RabbitX.Diagnostics;
 
 namespace RabbitX.Connection;
 
@@ -126,6 +127,10 @@ public sealed class RabbitMQConnection : IRabbitMQConnection
             connection.ConnectionBlockedAsync += OnConnectionBlockedAsync;
             connection.ConnectionUnblockedAsync += OnConnectionUnblockedAsync;
 
+            RabbitXMeter.ConnectionsCreated.Add(1,
+                new KeyValuePair<string, object?>("host", connOptions.HostName),
+                new KeyValuePair<string, object?>("vhost", connOptions.VirtualHost));
+
             _logger.LogInformation(
                 "Connected to RabbitMQ. ClientName: {ClientName}",
                 connection.ClientProvidedName);
@@ -134,6 +139,10 @@ public sealed class RabbitMQConnection : IRabbitMQConnection
         }
         catch (Exception ex)
         {
+            RabbitXMeter.ConnectionErrors.Add(1,
+                new KeyValuePair<string, object?>("host", connOptions.HostName),
+                new KeyValuePair<string, object?>("vhost", connOptions.VirtualHost));
+
             _logger.LogError(
                 ex,
                 "Failed to connect to RabbitMQ at {Host}:{Port}",

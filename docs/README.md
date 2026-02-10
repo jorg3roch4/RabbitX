@@ -12,6 +12,7 @@
 - **Dead Letter Queues** - Automatic DLQ configuration for failed messages
 - **JSON Serialization** - System.Text.Json with customizable options
 - **Health Checks** - Built-in ASP.NET Core health check with blocked state detection
+- **OpenTelemetry** - Distributed tracing, metrics, and W3C TraceContext propagation
 
 ## Requirements
 
@@ -54,6 +55,7 @@ services.AddHostedConsumer<OrderCreatedEvent>("OrderConsumer");
 | 10 | [Samples](10-samples.md) | Complete working examples |
 | 11 | [Troubleshooting](11-troubleshooting.md) | Common issues and solutions |
 | 12 | [Health Checks](12-health-checks.md) | ASP.NET Core health check integration |
+| 13 | [OpenTelemetry](13-opentelemetry.md) | Distributed tracing, metrics, and context propagation |
 
 ## Architecture Overview
 
